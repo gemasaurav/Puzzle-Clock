@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0a12">
+  <title>Puzzle Clock</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: linear-gradient(160deg, #0a0a12 0%, #1a1a2e 40%, #16213e 100%);
+      min-height: 100vh;
+      min-height: 100dvh;
+      padding: env(safe-area-inset-top) 12px env(safe-area-inset-bottom);
+      -webkit-tap-highlight-color: transparent;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color: #e8e8e8;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* Status bar mock */
+    .status-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 18px;
+      font-size: 12px;
+      color: #aaa;
+      background: rgba(0,0,0,0.3);
+    }
+
+    .status-left { display: flex; gap: 6px; align-items: center; }
+    .status-right { display: flex; gap: 8px; align-items: center; }
+
+    /* Date */
+    .date-display {
+      margin-top: 0;
+      font-size: 15px;
+      letter-spacing: 1.5px;
+      color: #b0b0c0;
+      text-transform: uppercase;
+      margin-bottom: 28px;
+    }
+
+    /* Clock container */
+    .clock-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+    }
+
+    /* Four white boxes for HH MM */
+    .digit-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .digit-box {
+      width: 72px;
+      height: 96px;
+      background: #ffffff;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow:
+        0 4px 20px rgba(0,0,0,0.45),
+        inset 0 1px 0 rgba(255,255,255,0.9),
+        0 0 0 1px rgba(255,255,255,0.15);
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .digit-box:active {
+      transform: scale(0.95);
+    }
+
+    .digit-box.revealed {
+      box-shadow:
+        0 4px 24px rgba(74, 222, 128, 0.35),
+        inset 0 1px 0 rgba(255,255,255,0.9),
+        0 0 0 2px rgba(74, 222, 128, 0.5);
+    }
+
+    .digit-box::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(255,255,255,0.25) 0%, transparent 40%);
+      pointer-events: none;
+    }
+
+    .digit {
+      font-size: 52px;
+      font-weight: 700;
+      color: #111;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -1px;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+
+    .digit-box.revealed .digit {
+      opacity: 1;
+    }
+
+    /* Subtle hint that boxes are tappable when empty */
+    .digit-box:not(.revealed)::before {
+      content: '?';
+      position: absolute;
+      font-size: 28px;
+      font-weight: 300;
+      color: #ccc;
+      z-index: 1;
+    }
+
+    .colon {
+      font-size: 48px;
+      font-weight: 300;
+      color: #ffffff;
+      margin: 0 4px;
+      opacity: 0.9;
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+      50% { opacity: 0.25; }
+    }
+
+    /* Equations section */
+    .equations-panel {
+      margin-top: 36px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 16px;
+      padding: 20px 28px;
+      min-width: 320px;
+      backdrop-filter: blur(12px);
+    }
+
+    .eq-header {
+      font-size: 11px;
+      letter-spacing: 2px;
+      color: #8888aa;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+      text-align: center;
+    }
+
+    .eq-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 24px;
+      margin-bottom: 12px;
+    }
+
+    .eq-row:last-child { margin-bottom: 0; }
+
+    .eq-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #a0a0c0;
+      min-width: 32px;
+    }
+
+    .eq-expr {
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 18px;
+      color: #ffffff;
+      background: rgba(0,0,0,0.25);
+      padding: 8px 14px;
+      border-radius: 8px;
+      letter-spacing: 0.5px;
+      flex: 1;
+      text-align: center;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    /* Hint / instruction */
+    .hint {
+      margin-top: 28px;
+      font-size: 12px;
+      color: #666680;
+      text-align: center;
+      max-width: 300px;
+      line-height: 1.5;
+    }
+
+    /* Bottom lock indicator */
+    .lock-indicator {
+      position: absolute;
+      bottom: 48px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      opacity: 0.6;
+    }
+
+    .lock-icon {
+      width: 22px;
+      height: 28px;
+      border: 2.5px solid #ccc;
+      border-radius: 4px 4px 6px 6px;
+      position: relative;
+    }
+    .lock-icon::before {
+      content: '';
+      position: absolute;
+      top: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 12px;
+      height: 10px;
+      border: 2.5px solid #ccc;
+      border-bottom: none;
+      border-radius: 8px 8px 0 0;
+    }
+
+    .swipe-text {
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: #999;
+    }
+
+    /* Refresh note */
+    .refresh-note {
+      position: absolute;
+      bottom: 16px;
+      font-size: 10px;
+      color: #555;
+    }
+
+    /* Responsive */
+    @media (max-width: 400px) {
+      .digit-box {
+        width: 58px;
+        height: 78px;
+      }
+      .digit { font-size: 42px; }
+      .digit-box:not(.revealed)::before { font-size: 24px; }
+      .equations-panel { min-width: 280px; padding: 16px 20px; }
+      .eq-expr { font-size: 15px; }
+    }
+    @media (max-height: 640px) {
+      .date-display { margin-bottom: 14px; }
+      .equations-panel { margin-top: 20px; padding: 14px 20px; }
+      .hint { margin-top: 14px; }
+    }
+    @media (max-width: 340px) {
+      .digit-box { width: 50px; height: 68px; }
+      .digit { font-size: 36px; }
+      .equations-panel { min-width: 0; width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="date-display" id="dateDisplay">—</div>
+
+  <div class="clock-container">
+    <div class="digit-row">
+      <div class="digit-box" data-pos="h1"><span class="digit" id="h1"></span></div>
+      <div class="digit-box" data-pos="h2"><span class="digit" id="h2"></span></div>
+      <span class="colon">:</span>
+      <div class="digit-box" data-pos="m1"><span class="digit" id="m1"></span></div>
+      <div class="digit-box" data-pos="m2"><span class="digit" id="m2"></span></div>
+    </div>
+  </div>
+
+  <div class="equations-panel">
+    <div class="eq-header">Solve for the time</div>
+    <div class="eq-row">
+      <span class="eq-label">HH</span>
+      <span class="eq-expr" id="hhEq">—</span>
+    </div>
+    <div class="eq-row">
+      <span class="eq-label">MM</span>
+      <span class="eq-expr" id="mmEq">—</span>
+    </div>
+  </div>
+
+  <div class="hint">
+    Equations change every minute.<br>
+    Tap a white box to reveal its digit.
+  </div>
+
+  <script>
+    // Generate a random arithmetic expression that evaluates to target
+    function generateEquation(target) {
+      const ops = [
+        // a + b  (prefer positive addends)
+        () => {
+          if (target <= 0) return null;
+          const a = rand(1, target);
+          const b = target - a;
+          if (b === 0) return null;
+          return `${a}+${b}`;
+        },
+        // a - b
+        () => {
+          const b = rand(1, 25);
+          const a = target + b;
+          return `${a}-${b}`;
+        },
+        // a * b  (when target has small factors)
+        () => {
+          const factors = getFactors(target);
+          if (factors.length < 2) return null;
+          const a = factors[rand(0, factors.length - 1)];
+          const b = target / a;
+          if (b === 1 || a === 1) return null;
+          return `${a}×${b}`;
+        },
+        // a + b - c
+        () => {
+          const a = rand(5, 40);
+          const b = rand(5, 30);
+          const c = a + b - target;
+          if (c <= 0 || c > 50) return null;
+          return `${a}+${b}-${c}`;
+        },
+        // a - b + c
+        () => {
+          const a = rand(target + 5, target + 35);
+          const b = rand(3, 20);
+          const c = target - (a - b);
+          if (c <= 0 || c > 40) return null;
+          return `${a}-${b}+${c}`;
+        },
+        // pure subtraction fallback style
+        () => {
+          if (target < 5) return null;
+          const a = rand(target + 3, target + 25);
+          return `${a}-${a - target}`;
+        },
+        // a × b + c
+        () => {
+          const a = rand(2, 9);
+          const b = rand(2, 9);
+          const c = target - (a * b);
+          if (c < 0 || c > 40) return null;
+          return `${a}×${b}+${c}`;
+        },
+        // a × b - c
+        () => {
+          const a = rand(2, 9);
+          const b = rand(2, 9);
+          const prod = a * b;
+          if (prod <= target) return null;
+          const c = prod - target;
+          if (c > 40) return null;
+          return `${a}×${b}-${c}`;
+        },
+        // (a + b) × c   only when target divisible
+        () => {
+          const factors = getFactors(target).filter(f => f > 1 && f < target);
+          if (factors.length === 0) return null;
+          const c = factors[rand(0, factors.length - 1)];
+          const sum = target / c;
+          const a = rand(1, sum - 1);
+          const b = sum - a;
+          return `(${a}+${b})×${c}`;
+        },
+        // a + b × c
+        () => {
+          const b = rand(2, 8);
+          const c = rand(2, 8);
+          const a = target - (b * c);
+          if (a < 0 || a > 40) return null;
+          return `${a}+${b}×${c}`;
+        }
+      ];
+
+      // Shuffle and try until we get a valid expression
+      const shuffled = ops.sort(() => Math.random() - 0.5);
+      for (let i = 0; i < 30; i++) {
+        const fn = shuffled[i % shuffled.length];
+        const expr = fn();
+        if (expr && evaluateSafe(expr) === target) {
+          return expr;
+        }
+      }
+
+      // Fallback simple forms
+      if (target === 0) return "5-5";
+      const a = rand(1, 20);
+      return `${target + a}-${a}`;
+    }
+
+    function evaluateSafe(expr) {
+      try {
+        const safe = expr.replace(/×/g, '*').replace(/[^0-9+\-*/()]/g, '');
+        return Function('"use strict"; return (' + safe + ')')();
+      } catch {
+        return NaN;
+      }
+    }
+
+    function getFactors(n) {
+      if (n <= 1) return [1];
+      const f = [];
+      for (let i = 1; i <= Math.sqrt(n); i++) {
+        if (n % i === 0) {
+          f.push(i);
+          if (i !== n / i) f.push(n / i);
+        }
+      }
+      return f.sort((a, b) => a - b);
+    }
+
+    function rand(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    // Current correct digits (updated every second)
+    let currentDigits = { h1: '0', h2: '0', m1: '0', m2: '0' };
+    let lastMinuteKey = '';
+    // Track which boxes the user has already revealed
+    const revealed = { h1: false, h2: false, m1: false, m2: false };
+
+    function updateClock() {
+      const now = new Date();
+      const h = now.getHours();
+      const m = now.getMinutes();
+
+      const hh = String(h).padStart(2, '0');
+      const mm = String(m).padStart(2, '0');
+
+      currentDigits = {
+        h1: hh[0],
+        h2: hh[1],
+        m1: mm[0],
+        m2: mm[1]
+      };
+
+      // Only put the digit into the element if that box is already revealed
+      ['h1', 'h2', 'm1', 'm2'].forEach(pos => {
+        const el = document.getElementById(pos);
+        if (revealed[pos]) {
+          el.textContent = currentDigits[pos];
+        } else {
+          el.textContent = '';
+        }
+      });
+
+      // Date
+      const options = { weekday: 'long', month: 'long', day: 'numeric' };
+      document.getElementById('dateDisplay').textContent =
+        now.toLocaleDateString(undefined, options);
+
+      // Regenerate equations only when the minute changes (or first load)
+      const minuteKey = `${h}:${m}`;
+      if (minuteKey !== lastMinuteKey) {
+        lastMinuteKey = minuteKey;
+
+        // Reset reveals on new minute so user must solve again
+        ['h1', 'h2', 'm1', 'm2'].forEach(pos => {
+          revealed[pos] = false;
+          const box = document.querySelector(`.digit-box[data-pos="${pos}"]`);
+          box.classList.remove('revealed');
+          document.getElementById(pos).textContent = '';
+        });
+
+        const hhExpr = generateEquation(h);
+        const mmExpr = generateEquation(m);
+
+        // No green result — only the equation
+        document.getElementById('hhEq').textContent = hhExpr;
+        document.getElementById('mmEq').textContent = mmExpr;
+      }
+    }
+
+    // Tap a white box → reveal the correct digit
+    document.querySelectorAll('.digit-box').forEach(box => {
+      box.addEventListener('click', () => {
+        const pos = box.dataset.pos;
+        if (revealed[pos]) return; // already shown
+
+        revealed[pos] = true;
+        box.classList.add('revealed');
+        document.getElementById(pos).textContent = currentDigits[pos];
+      });
+    });
+
+    // Initial + every second
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    // Tap the equations panel to force new equations (and hide digits again)
+    document.querySelector('.equations-panel').addEventListener('click', () => {
+      lastMinuteKey = '';
+      updateClock();
+    });
+  </script>
+  <script>
+    // keep the screen on while the puzzle is open (ignored where unsupported)
+    try { if (navigator.wakeLock) navigator.wakeLock.request('screen').catch(()=>{}); } catch (e) {}
+  </script>
+</body>
+</html>
